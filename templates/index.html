@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Text Summarization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+<div class="max-w-7xl mx-auto px-6 py-10">
+    <h1 class="text-3xl font-bold text-slate-800 mb-6">Text Summarization</h1>
+    <form method="POST" class="bg-white p-6 rounded-xl shadow mb-8">
+        <textarea name="text" rows="8" class="w-full border rounded p-4 text-sm"
+                  placeholder="Enter Vietnamese text here...">{{ text }}</textarea>
+        <button class="mt-4 bg-blue-600 text-white px-6 py-2 rounded">Summarize</button>
+    </form>
+
+    <!-- TABS -->
+    {% if text %}
+        <div class="mb-6">
+            <div class="flex border-b">
+                <button class="px-4 py-2 -mb-px border-b-2 font-semibold
+            {% if active_pipeline != 'B' %}border-blue-600 text-blue-600{% else %}border-transparent text-slate-500{% endif %}"
+                        onclick="switchPipeline('A')">TF-IDF</button>
+                <button class="ml-4 px-4 py-2 -mb-px border-b-2 font-semibold
+            {% if active_pipeline == 'B' %}border-blue-600 text-blue-600{% else %}border-transparent text-slate-500{% endif %}"
+                        onclick="switchPipeline('B')">TextRank</button>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if pipelineA %}
+        <div id="tab-pipeline-A">
+            <div class="bg-white p-6 rounded-xl shadow mb-8">
+                <h2 class="text-xl font-semibold mb-4">
+                    Sentence Segmentation
+                    (N = {{ sentences | length }}, Top-K = {{ top_k }})
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                        <tr class="bg-slate-100 text-slate-700">
+                            <th class="border px-3 py-2 text-center">No</th>
+                            <th class="border px-3 py-2 text-left">Sentence (d)</th>
+                            <th class="border px-3 py-2 text-center">TF-IDF Top Terms</th>
+                            <th class="border px-3 py-2 text-center">Similarity Links</th>
+                            <th class="border px-3 py-2 text-center">PageRank</th>
+                            <th class="border px-3 py-2 text-center">LR Score</th>
+                            <th class="border px-3 py-2 text-center">Selected</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for r in sentence_rows %}
+                            <tr class="hover:bg-slate-50 cursor-pointer"
+                                onclick="toggleDetail('detail-{{ r.no }}')">
+                                <td class="border px-3 py-2 text-center">{{ r.no }}</td>
+                                <td class="border px-3 py-2">{{ r.sentence }}</td>
+                                <td class="border px-3 py-2 text-center">{{ r.tfidf_terms }}</td>
+                                <td class="border px-3 py-2 text-center">{{ r.connections }}</td>
+                                <td class="border px-3 py-2 text-center font-mono">{{ r.pagerank }}</td>
+                                <td class="border px-3 py-2 text-center font-mono">{{ r.lr_score }}</td>
+                                <td class="border px-3 py-2 text-center">
+                                    {% if r.selected == "Yes" %}
+                                        <span class="!text-green-600 font-semibold">✔</span>
+                                    {% else %}
+                                        <span class="!text-slate-400">✖</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+
+                            <tr id="detail-{{ r.no }}" class="hidden bg-slate-50">
+                                <td colspan="6" class="border px-4 py-3 text-sm">
+                                    <div class="mb-2"><b>Tokenization (∑ₖf(k,d) = {{ r.detail.tokens | length }}):</b>
+                                    </div>
+                                    <div class="mb-2">{{ r.detail.tokens }}</div>
+
+                                    <div class="mb-2">
+                                        <b>TF-IDF Vectorization:</b>
+                                        <div class="mt-2">
+                                            • TF (Term Frequency) measures how often a term appears in a document,
+                                            reflecting its
+                                            importance within that document.<br>
+                                            • IDF (Inverse Document Frequency) measures how informative a term is across
+                                            a collection of
+                                            documents, giving lower weight to terms that appear in many documents.<br>
+                                            • Scikit-learn applies L2 normalization to the TF-IDF vector
+                                            and uses the natural logarithm (ln) in IDF computation, which explains why
+                                            the
+                                            resulting values differ from manual calculations.
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border rounded p-3 my-2">
+                                        $$
+                                        \begin{aligned}[t]
+                                        TF(t,d) = \frac{f(t,d)}{\sum_k f(k,d)} \qquad
+                                        IDF(t) = \ln\!\left(\frac{1 + N}{1 + df(t)}\right) + 1 \qquad
+                                        TF\text{-}IDF(t,d) = TF(t,d)\times IDF(t) \qquad
+                                        TF\text{-}IDF_{\text{L2}}(t,d) = \frac{TF\text{-}IDF(t,d)}
+                                        {\sqrt{\sum_j \left(TF\text{-}IDF(t_j,d)\right)^2}} \\[6pt]
+                                        f(t,d): \text{ the number of times term } t \text{ appears in sentence } d \\
+                                        \sum_k f(k,d): \text{ the total number of terms in sentence } d \\
+                                        df(t): \text{the number of sentences containing term } t \\
+                                        {\sqrt{\sum_j \left(TF\text{-}IDF(t_j,d)\right)^2}}: \text{ the square root of
+                                        the sum of squared TF-IDF values of all terms in sentence } d
+                                        \end{aligned}
+                                        $$
+                                    </div>
+                                    <div class="max-h-64 overflow-y-auto border rounded mb-3">
+                                        <table class="w-full text-sm border-collapse">
+                                            <thead>
+                                            <tr class="bg-slate-200">
+                                                <th class="border px-2 py-1 w-2/5 text-left">Term (t)</th>
+                                                <th class="border px-2 py-1 w-1/10 text-center">TF</th>
+                                                <th class="border px-2 py-1 w-1/10 text-center">IDF</th>
+                                                <th class="border px-2 py-1 w-1/10 text-center">TF-IDF</th>
+                                                <th class="border px-2 py-1 w-1/10 text-center">TF-IDF (L2-normalized)
+                                                </th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            {% for row in r.detail.tfidf_rows %}
+                                                <tr>
+                                                    <td class="border px-2 py-1 w-2/5 break-words">{{ row.term }}</td>
+                                                    <td class="border px-2 py-1 w-1/10 text-center">{{ row.tf_raw }}</td>
+                                                    <td class="border px-2 py-1 w-1/10 text-center">{{ row.idf }}</td>
+                                                    <td class="border px-2 py-1 w-1/10 text-center">{{ (row.tf_raw * row.idf) | round(4) }}</td>
+                                                    <td class="border px-2 py-1 w-1/10 text-center">{{ row.tfidf }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="mb-2"><b>TF-IDF Top Terms (to explain what the statement is about):</b>
+                                    </div>
+                                    <ul class="list-disc list-inside mb-3">
+                                        {% for t, v in r.detail.top_terms %}
+                                            <li>{{ t }}: {{ v }}</li>
+                                        {% endfor %}
+                                    </ul>
+
+                                    <div class="mb-2">
+                                        <b>Cosine Similarity:</b>
+                                        <div class="mt-2">
+                                            • Measures the similarity between two vectors by computing the cosine of the
+                                            angle between them, indicating how similar their directions are regardless
+                                            of
+                                            their magnitudes.<br>
+                                            • TF-IDF generates vectors → Cosine Similarity compares TF-IDF vectors.
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border rounded p-3 my-2">
+                                        $$
+                                        \cos(\vec{s_i}, \vec{s_j}) = \frac{\vec{s_i} \cdot \vec{s_j}}
+                                        {\|\vec{s_i}\|\|\vec{s_j}\|}
+                                        = \sum_{t \in V} TF\text{-}IDF_{L2}(t,S_i) \cdot TF\text{-}IDF_{L2}(t,S_j)
+                                        $$
+                                    </div>
+                                    <table class="bg-white w-full text-sm border-collapse">
+                                        <thead>
+                                        <tr class="bg-slate-200">
+                                            <th class="border px-2 py-1">No</th>
+                                            <th class="border px-2 py-1">Sentence Pair</th>
+                                            <th class="border px-2 py-1">Cosine Similarity</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for row in r.detail.cosine_rows %}
+                                            <tr onclick="toggleDetail('cos-{{ r.no }}-{{ loop.index }}')"
+                                                class="hover:bg-slate-50 cursor-pointer">
+                                                <td class="border px-2 py-1 text-center">{{ loop.index }}</td>
+                                                <td class="border px-2 py-1">{{ row.pair }}</td>
+                                                <td class="border px-2 py-1 text-center">{{ row.similarity }}</td>
+                                            </tr>
+                                            <tr id="cos-{{ r.no }}-{{ loop.index }}" class="hidden bg-slate-50">
+                                                <td colspan="3" class="border px-4 py-3">
+                                                    <b>Shared TF-IDF terms ({{ loop.index }}):</b>
+                                                    <table class="w-full text-sm mt-2 border-collapse">
+                                                        <thead>
+                                                        <tr class="bg-slate-200">
+                                                            <th class="border px-2 py-1">Term</th>
+                                                            <th class="border px-2 py-1">S1</th>
+                                                            <th class="border px-2 py-1">S2</th>
+                                                            <th class="border px-2 py-1">Product</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        {% for t in row.shared_terms %}
+                                                            <tr>
+                                                                <td class="border px-2 py-1">{{ t.term }}</td>
+                                                                <td class="border px-2 py-1 text-center">{{ t.s1 }}</td>
+                                                                <td class="border px-2 py-1 text-center">{{ t.s2 }}</td>
+                                                                <td class="border px-2 py-1 text-center">{{ t.product }}</td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+
+                                    <div class="mt-4">
+                                        <b>PageRank:</b>
+                                        <div class="mt-2">
+                                            • Measures the importance of nodes in a graph based on the structure of
+                                            incoming
+                                            links, where a node is considered important if it is linked to by other
+                                            important nodes.
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border rounded p-3 my-2">
+                                        $$
+                                        \begin{aligned}[t]
+                                        PR(S_i) = \underbrace{\frac{1-d}{N}}_{\text{Base score}} + \underbrace{\sum_{j
+                                        \in In(S_i)} d \cdot \frac{w_{j \to i}}{\sum_k w_{j \to k}} \cdot
+                                        PR(S_j)}_{\text{Contribution}} \\
+                                        {{ r.detail.pagerank_latex }} = {{ r.detail.pagerank_result }}
+                                        \end{aligned}
+                                        $$
+                                    </div>
+                                    <div class="mt-4 mb-3">
+                                        <div class="mb-2">
+                                            • Base score = {{ r.detail.pagerank_base }}
+                                            • Sum contributions = {{ r.detail.pagerank_sum }}
+                                        </div>
+                                        <table class="w-full text-sm border-collapse">
+                                            <thead>
+                                            <tr class="bg-slate-200">
+                                                <th class="border px-2 py-1">From</th>
+                                                <th class="border px-2 py-1">w(j→i)</th>
+                                                <th class="border px-2 py-1">Σ w(j→*)</th>
+                                                <th class="border px-2 py-1">PR(j)</th>
+                                                <th class="border px-2 py-1">Contribution</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            {% for row in r.detail.pagerank_rows %}
+                                                <tr>
+                                                    <td class="border px-2 py-1">{{ row.from }}</td>
+                                                    <td class="border px-2 py-1 text-center">{{ row.w_ji }}</td>
+                                                    <td class="border px-2 py-1 text-center">{{ row.sum_w_j }}</td>
+                                                    <td class="border px-2 py-1 text-center">{{ row.pr_j }}</td>
+                                                    <td class="border px-2 py-1 text-center">{{ row.contrib }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div><b>Decision:</b> {{ r.detail.decision }}</div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SUMMARY -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow">
+                    <h2 class="text-xl font-semibold mb-4">Summary (PageRank)</h2>
+                    {% for s in summary %}
+                        <p class="bg-slate-50 border rounded p-4 mb-2 text-sm">
+                            {{ s }}
+                        </p>
+                    {% endfor %}
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow">
+                    <h2 class="text-xl font-semibold mb-4">Summary (Logistic Regression - TF-IDF)</h2>
+                    {% for s in summary_lr %}
+                        <p class="bg-slate-50 border rounded p-4 mb-2 text-sm">
+                            {{ s }}
+                        </p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- GRAPH VISUALIZATION -->
+            <div class="bg-white p-6 rounded-xl shadow text-center mt-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <img src="/static/uploads/graphA.png" alt="" class="border rounded">
+                    <img src="/static/uploads/heatmapA.png" alt="" class="border rounded hidden">
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if pipelineB %}
+        <div id="tab-pipeline-B">
+            <div class="bg-white p-6 rounded-xl shadow mb-8">
+                <h2 class="text-xl font-semibold mb-4">Sentence Ranking</h2>
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                    <tr class="bg-slate-100">
+                        <th class="border px-3 py-2 text-center">No</th>
+                        <th class="border px-3 py-2 text-left">Sentence</th>
+                        <th class="border px-3 py-2 text-center">PageRank</th>
+                        <th class="border px-3 py-2 text-center">Selected</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for r in pipelineB.sentence_rows %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="border px-3 py-2 text-center">{{ r.no }}</td>
+                            <td class="border px-3 py-2">{{ r.sentence }}</td>
+                            <td class="border px-3 py-2 text-center font-mono">{{ r.pagerank }}</td>
+                            <td class="border px-3 py-2 text-center">
+                                {% if r.selected == "Yes" %}
+                                    <span class="!text-green-600 font-semibold">✔</span>
+                                {% else %}
+                                    <span class="!text-slate-400">✖</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr class="bg-slate-50">
+                            <td colspan="4" class="border px-4 py-3 text-sm">
+                                <b>Tokens:</b> {{ r.tokens }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- SUMMARY -->
+            <div class="bg-white p-6 rounded-xl shadow">
+                <h2 class="text-xl font-semibold mb-4">Summary (TextRank)</h2>
+                {% for s in pipelineB.summary %}
+                    <p class="bg-slate-50 border rounded p-4 mb-2 text-sm">
+                        {{ s }}
+                    </p>
+                {% endfor %}
+            </div>
+
+            <!-- GRAPH VISUALIZATION -->
+            <div class="bg-white p-6 rounded-xl shadow mt-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <img src="/static/uploads/graphB.png" alt="" class="border rounded">
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+</div>
+<script>
+function switchPipeline(pipeline) {
+    const form = document.querySelector("form");
+    let input = document.getElementById("pipeline-input");
+
+    if (!input) {
+        input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "pipeline";
+        input.id = "pipeline-input";
+        form.appendChild(input);
+    }
+
+    input.value = pipeline;
+    form.submit();
+}
+
+function toggleDetail(id) {
+    const row = document.getElementById(id);
+    if (row) row.classList.toggle("hidden");
+}
+</script>
+</body>
+</html>
