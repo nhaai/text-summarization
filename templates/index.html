@@ -44,9 +44,10 @@
                             <th class="border px-3 py-2 text-left">Sentence (d)</th>
                             <th class="border px-3 py-2 text-center">TF-IDF Top Terms</th>
                             <th class="border px-3 py-2 text-center">Similarity Links</th>
-                            <th class="border px-3 py-2 text-center">PageRank</th>
+                            <th class="border px-3 py-2 text-center">PageRank (PR)</th>
+                            <th class="border px-3 py-2 text-center">Selected (PR)</th>
                             <th class="border px-3 py-2 text-center">LR Score</th>
-                            <th class="border px-3 py-2 text-center">Selected</th>
+                            <th class="border px-3 py-2 text-center">Selected (LR)</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -58,9 +59,16 @@
                                 <td class="border px-3 py-2 text-center">{{ r.tfidf_terms }}</td>
                                 <td class="border px-3 py-2 text-center">{{ r.connections }}</td>
                                 <td class="border px-3 py-2 text-center font-mono">{{ r.pagerank }}</td>
-                                <td class="border px-3 py-2 text-center font-mono">{{ r.lr_score }}</td>
                                 <td class="border px-3 py-2 text-center">
                                     {% if r.selected == "Yes" %}
+                                        <span class="!text-green-600 font-semibold">✔</span>
+                                    {% else %}
+                                        <span class="!text-slate-400">✖</span>
+                                    {% endif %}
+                                </td>
+                                <td class="border px-3 py-2 text-center font-mono">{{ r.lr_score }}</td>
+                                <td class="border px-3 py-2 text-center">
+                                    {% if r.lr_selected == "Yes" %}
                                         <span class="!text-green-600 font-semibold">✔</span>
                                     {% else %}
                                         <span class="!text-slate-400">✖</span>
@@ -69,8 +77,30 @@
                             </tr>
 
                             <tr id="detail-{{ r.no }}" class="hidden bg-slate-50">
-                                <td colspan="6" class="border px-4 py-3 text-sm">
-                                    <div class="mb-2"><b>Tokenization (∑ₖf(k,d) = {{ r.detail.tokens | length }}):</b>
+                                <td colspan="8" class="border px-4 py-3 text-sm">
+                                    <div class="mb-2">
+                                        <b>Top-K:</b>
+                                        <div class="mt-2">
+                                            • Top-K refers to selecting the K highest-scoring sentences
+                                            after ranking all sentences by an importance measure
+                                            (e.g., PageRank or TextRank), where K is determined as a fixed proportion
+                                            of the document length.
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border rounded p-3 my-2">
+                                        $$
+                                        K = \max\!\left(1,\; \left\lfloor N \times r \right\rfloor \right) \qquad
+                                        \begin{aligned}
+                                        K &: \text{number of sentences selected for the summary} \\
+                                        N &: \text{total number of sentences in the document} \\
+                                        r &: \text{summary ratio (e.g., } r = 0.33\text{)} \\
+                                        \lfloor \cdot \rfloor &: \text{floor function}
+                                        \end{aligned}
+                                        $$
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <b>Tokenization (∑ₖf(k,d) = {{ r.detail.tokens | length }}):</b>
                                     </div>
                                     <div class="mb-2">{{ r.detail.tokens }}</div>
 
@@ -78,15 +108,15 @@
                                         <b>TF-IDF Vectorization:</b>
                                         <div class="mt-2">
                                             • TF (Term Frequency) measures how often a term appears in a document,
-                                            reflecting its
-                                            importance within that document.<br>
+                                            reflecting its importance within that document.<br>
                                             • IDF (Inverse Document Frequency) measures how informative a term is across
-                                            a collection of
-                                            documents, giving lower weight to terms that appear in many documents.<br>
+                                            a collection of documents,
+                                            giving lower weight to terms that appear in many documents.<br>
                                             • Scikit-learn applies L2 normalization to the TF-IDF vector
                                             and uses the natural logarithm (ln) in IDF computation, which explains why
-                                            the
-                                            resulting values differ from manual calculations.
+                                            the resulting values differ from manual calculations.
+                                            • Why L2 Normalization? To removes sentence length bias and
+                                            makes cosine similarity a simple dot product.
                                         </div>
                                     </div>
                                     <div class="bg-white border rounded p-3 my-2">
@@ -100,12 +130,16 @@
                                         f(t,d): \text{ the number of times term } t \text{ appears in sentence } d \\
                                         \sum_k f(k,d): \text{ the total number of terms in sentence } d \\
                                         df(t): \text{the number of sentences containing term } t \\
-                                        {\sqrt{\sum_j \left(TF\text{-}IDF(t_j,d)\right)^2}}: \text{ the square root of
-                                        the sum of squared TF-IDF values of all terms in sentence } d
+                                        {\sqrt{\sum_j \left(TF\text{-}IDF(t_j,d)\right)^2}}: \text{ the square root of the sum of squared TF-IDF values of all terms in sentence } d
                                         \end{aligned}
                                         $$
                                     </div>
                                     <div class="max-h-64 overflow-y-auto border rounded mb-3">
+                                        {% set ns = namespace(sum_sq=0) %}
+                                        {% for row in r.detail.tfidf_rows %}
+                                            {% set tfidf_raw = row.tf_raw * row.idf %}
+                                            {% set ns.sum_sq = ns.sum_sq + (tfidf_raw * tfidf_raw) %}
+                                        {% endfor %}
                                         <table class="w-full text-sm border-collapse">
                                             <thead>
                                             <tr class="bg-slate-200">
@@ -113,7 +147,9 @@
                                                 <th class="border px-2 py-1 w-1/10 text-center">TF</th>
                                                 <th class="border px-2 py-1 w-1/10 text-center">IDF</th>
                                                 <th class="border px-2 py-1 w-1/10 text-center">TF-IDF</th>
-                                                <th class="border px-2 py-1 w-1/10 text-center">TF-IDF (L2-normalized)
+                                                <th class="border px-2 py-1 w-1/10 text-center">
+                                                    TF-IDF
+                                                    (L2, ∑<sub>(TF-IDF)&sup2;</sub> = {{ ns.sum_sq | round(6) }})
                                                 </th>
                                             </tr>
                                             </thead>
@@ -143,16 +179,26 @@
                                         <div class="mt-2">
                                             • Measures the similarity between two vectors by computing the cosine of the
                                             angle between them, indicating how similar their directions are regardless
-                                            of
-                                            their magnitudes.<br>
+                                            of their magnitudes.<br>
                                             • TF-IDF generates vectors → Cosine Similarity compares TF-IDF vectors.
                                         </div>
                                     </div>
                                     <div class="bg-white border rounded p-3 my-2">
                                         $$
-                                        \cos(\vec{s_i}, \vec{s_j}) = \frac{\vec{s_i} \cdot \vec{s_j}}
-                                        {\|\vec{s_i}\|\|\vec{s_j}\|}
-                                        = \sum_{t \in V} TF\text{-}IDF_{L2}(t,S_i) \cdot TF\text{-}IDF_{L2}(t,S_j)
+                                        \cos(\vec{s_i}, \vec{s_j})
+                                        = \frac{\vec{s_i} \cdot \vec{s_j}} {\|\vec{s_i}\|\|\vec{s_j}\|}
+                                        = \sum_{t \in V} TF\text{-}IDF_{L2}(t,S_i) \cdot TF\text{-}IDF_{L2}(t,S_j) \qquad
+                                        \begin{aligned}
+                                        \vec{s_i}, \vec{s_j} &: \text{TF-IDF vector representations of sentences } S_i
+                                        \text{ and } S_j \\
+                                        \vec{s_i} \cdot \vec{s_j} &: \text{dot product between the two TF-IDF vectors} \\
+                                        \|\vec{s_i}\|, \|\vec{s_j}\| &: \text{L2 norms of the sentence vectors} \\
+                                        V &: \text{vocabulary set of all terms in the document} \\
+                                        TF\text{-}IDF_{L2}(t, S_i) &: \text{L2-normalized TF-IDF weight of term } t
+                                        \text{ in sentence } S_i \\
+                                        TF\text{-}IDF_{L2}(t, S_j) &: \text{L2-normalized TF-IDF weight of term } t
+                                        \text{ in sentence } S_j
+                                        \end{aligned}
                                         $$
                                     </div>
                                     <table class="bg-white w-full text-sm border-collapse">
@@ -204,9 +250,8 @@
                                         <b>PageRank:</b>
                                         <div class="mt-2">
                                             • Measures the importance of nodes in a graph based on the structure of
-                                            incoming
-                                            links, where a node is considered important if it is linked to by other
-                                            important nodes.
+                                            incoming links, where a node is considered important if it is linked
+                                            to by other important nodes.
                                         </div>
                                     </div>
                                     <div class="bg-white border rounded p-3 my-2">
@@ -232,6 +277,7 @@
                                                 <th class="border px-2 py-1">Σ w(j→*)</th>
                                                 <th class="border px-2 py-1">PR(j)</th>
                                                 <th class="border px-2 py-1">Contribution</th>
+                                                <th class="border px-2 py-1">Note</th>
                                             </tr>
                                             </thead>
                                             <tbody>
@@ -242,13 +288,38 @@
                                                     <td class="border px-2 py-1 text-center">{{ row.sum_w_j }}</td>
                                                     <td class="border px-2 py-1 text-center">{{ row.pr_j }}</td>
                                                     <td class="border px-2 py-1 text-center">{{ row.contrib }}</td>
+                                                    <td class="border px-2 py-1 text-center">Σw(j→*) = cos({{ row.from }}).sum()</td>
                                                 </tr>
                                             {% endfor %}
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    <div><b>Decision:</b> {{ r.detail.decision }}</div>
+                                    <hr class="mt-4">
+                                    <div class="mt-4">
+                                        <b>LR Score (Logistic Regression):</b>
+                                        <div class="mt-2">
+                                            • Logistic Regression looks at which TF-IDF words usually appear in
+                                            important sentences, learns how strongly each word matters, and then assigns
+                                            a probability to each sentence indicating how likely it is to be important
+                                            based on its content alone.
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border rounded p-3 my-2">
+                                        $$
+                                        \text{LR}_i = P(y_i = 1 \mid \mathbf{x}_i)
+                                        = \sigma(\mathbf{w}^\top \mathbf{x}_i + b)
+                                        = \frac{1}{1 + e^{-(\mathbf{w}^\top \mathbf{x}_i + b)}} \qquad
+                                        \begin{aligned}[t]
+                                        \mathbf{x}_i &: \text{TF-IDF feature vector of sentence } i \\
+                                        \mathbf{w} &: \text{weight vector learned by Logistic Regression} \\
+                                        b &: \text{bias term of the classifier} \\
+                                        \sigma(z) &: \text{sigmoid function } \sigma(z) = \frac{1}{1 + e^{-z}} \\
+                                        \text{LR}_i &: \text{Logistic Regression score of sentence } i, \\
+                                        &\quad \text{representing the probability that sentence } i \text{ is important}
+                                        \end{aligned}
+                                        $$
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -278,10 +349,15 @@
             </div>
 
             <!-- GRAPH VISUALIZATION -->
-            <div class="bg-white p-6 rounded-xl shadow text-center mt-8">
+            <div class="bg-white p-6 rounded-xl shadow mt-8">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <img src="/static/uploads/graphA.png" alt="" class="border rounded">
-                    <img src="/static/uploads/heatmapA.png" alt="" class="border rounded hidden">
+                    <div class="flex justify-center">
+                        <img src="/static/uploads/graphA.png" alt="" class="border rounded">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="/static/uploads/lrscore.png" alt="" class="border rounded">
+                        <img src="/static/uploads/heatmapA.png" alt="" class="border rounded hidden">
+                    </div>
                 </div>
             </div>
         </div>
@@ -290,7 +366,36 @@
     {% if pipelineB %}
         <div id="tab-pipeline-B">
             <div class="bg-white p-6 rounded-xl shadow mb-8">
-                <h2 class="text-xl font-semibold mb-4">Sentence Ranking</h2>
+                <h2 class="text-xl font-semibold mb-4">
+                    <a href="https://aclanthology.org/W04-3252.pdf" target="_blank">Sentence Ranking</a>
+                </h2>
+                <div class="bg-white border rounded p-3 my-2">
+                    $$
+                    \mathrm{TR}(v_i) = (1 - d) + d \sum_{v_j \in \mathrm{In}(v_i)}
+                    \frac{w_{ji}}{\sum_{v_k \in \mathrm{Out}(v_j)} w_{jk}} \cdot \mathrm{TR}(v_j) \qquad
+                    \begin{aligned}
+                    \mathrm{TR}(v_i) &: \text{TextRank score of vertex } v_i \\
+                    d &: \text{damping factor (typically } d = 0.85\text{)} \\
+                    v_i &: \text{a vertex in the graph (e.g., a sentence)} \\
+                    \mathrm{In}(v_i) &: \text{set of vertices that link to } v_i \\
+                    \mathrm{Out}(v_j)&: \text{set of vertices that } v_j \text{ links to} \\
+                    w_{ji} &: \text{weight of the edge from } v_j \text{ to } v_i \\
+                    \sum_{v_k \in \mathrm{Out}(v_j)} w_{jk} &: \text{total weight of outgoing edges of node } v_j
+                    \end{aligned}
+                    $$
+                </div>
+                <div class="bg-white border rounded p-3 my-2">
+                    $$
+                    \mathrm{Similarity}(S_i, S_j)
+                    = \frac{\left| \{\, w_k \mid w_k \in S_i \land w_k \in S_j \,\} \right|
+                    }{\log(|S_i|) + \log(|S_j|)} \qquad
+                    \begin{aligned}
+                    S_i, S_j &: \text{sentences represented as sets of words} \\
+                    w_k &: \text{a lexical unit (word)} \\
+                    |S_i| &: \text{number of words in sentence } S_i
+                    \end{aligned}
+                    $$
+                </div>
                 <table class="w-full text-sm border-collapse">
                     <thead>
                     <tr class="bg-slate-100">
@@ -337,7 +442,12 @@
             <!-- GRAPH VISUALIZATION -->
             <div class="bg-white p-6 rounded-xl shadow mt-8">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <img src="/static/uploads/graphB.png" alt="" class="border rounded">
+                    <div class="flex justify-center">
+                        <img src="/static/uploads/graphB.png" alt="" class="border rounded">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="/static/uploads/textrank.png" alt="" class="border rounded">
+                    </div>
                 </div>
             </div>
         </div>

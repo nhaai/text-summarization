@@ -1,4 +1,4 @@
-# 🚦 Text Summarization with PageRank
+# 🚦 Text Summarization
 
 Pipeline A - TF-IDF
 - Step 1: Sentence segmentation

@@ -147,8 +147,9 @@ def pipelineA(text):
             "tfidf_terms": ", ".join([t for t, _ in top_terms]),
             "connections": len(connections),
             "pagerank": round(pagerank.get(i, 0), 4),
-            "lr_score": round(float(clf_probs[i]), 4),
             "selected": "Yes" if i in selected_ids else "No",
+            "lr_score": round(float(clf_probs[i]), 4),
+            "lr_selected": "Yes" if i in lr_selected_ids else "No",
             "detail": {
                 "tokens": terms,
                 "tfidf_rows": tfidf_rows,
@@ -162,7 +163,6 @@ def pipelineA(text):
                 "pagerank_base": round(base_score, 4),
                 "pagerank_sum": round(total_contrib, 4),
                 "pagerank_final": round(base_score + total_contrib, 4),
-                "decision": "Selected" if i in selected_ids else "Not selected",
             }
         })
 
