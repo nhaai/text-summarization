@@ -46,7 +46,9 @@ pip install -r requirements.txt
 ```bash
 project/
 │
-├── summarizer.py            # Core logic (8 steps)
+├── textrank.py              # Core logic
+├── tfidf.py
+├── nlp_utils
 │
 ├── app.py                   # Flask + Tailwind demo UI
 ├── static/
@@ -75,16 +77,16 @@ http://127.0.0.1:5000/
 
 ---
 
-## 📝 Notes
+## 📝 Checklist & Implementation Status
 
-| No. | Requirement                                                                                       |  Score   |
-|----:|---------------------------------------------------------------------------------------------------|:--------:|
-|   1 | Clearly define the problem objective and specify the input/output                                 |   1.0    |
-|   2 | Describe the approach used to solve the problem and explain the main idea                         |   1.0    |
-|   3 | Describe in detail the steps of the chosen approach                                               |   1.0    |
-|   4 | Implement at least 5 features for data representation / represent text as a graph                 |   2.0    |
-|   5 | Apply a machine learning classification method **or** rank nodes in the graph based on importance |   2.0    |
-|   6 | Successfully generate a text summary                                                              |   1.0    |
-|   7 | Analyze and evaluate the results: accuracy, strengths, and weaknesses                             |   1.0    |
-|   8 | Propose improvements to the method, such as adding features or adjusting graph weights            |   1.0    |
+| No. | Requirement                                                                                       |  Score   | Implemented (What was done)                                                                                                     |    Status   |
+|----:|---------------------------------------------------------------------------------------------------|:--------:| ------------------------------------------------------------------------------------------------------------------------------- | :---------: |
+|   1 | Clearly define the problem objective and specify the input/output                                 |   1.0    | Defined extractive text summarization for Vietnamese text; input is raw text, output is a top-K sentence summary                |  Completed  |
+|   2 | Describe the approach used to solve the problem and explain the main idea                         |   1.0    | Presented graph-based summarization with two pipelines: TF-IDF + PageRank and TextRank; Logistic Regression used for comparison |  Completed  |
+|   3 | Describe in detail the steps of the chosen approach                                               |   1.0    | Provided step-by-step pipelines, flow diagrams, and mathematical formulations                                                   |  Completed  |
+|   4 | Implement at least 5 features for data representation / represent text as a graph                 |   2.0    | Implemented TF-IDF unigrams, TF-IDF bigrams, cosine similarity, overlap similarity, sentence graphs, and ranking scores         |  Completed  |
+|   5 | Apply a machine learning classification method **or** rank nodes in the graph based on importance |   2.0    | Applied PageRank/TextRank for graph ranking and Logistic Regression for content-based scoring                                   |  Completed  |
+|   6 | Successfully generate a text summary                                                              |   1.0    | Generated summaries using top-K ranked sentences from PageRank and TextRank                                                     |  Completed  |
+|   7 | Analyze and evaluate the results: accuracy, strengths, and weaknesses                             |   1.0    | Compared PageRank and Logistic Regression results; discussed strengths and limitations qualitatively                            |  Completed  |
+|   8 | Propose improvements to the method, such as adding features or adjusting graph weights            |   1.0    | Suggested semantic features, adjusted graph weights, and hybrid ranking strategies                                              |  Completed  |
 |     | **Total**                                                                                         | **10.0** |
